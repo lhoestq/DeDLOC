@@ -1,6 +1,6 @@
 transformers>=4.5.1
 tokenizers>=0.10.2
-git+https://github.com/huggingface/datasets.git@streaming
+datasets>=1.16.1
 torch_optimizer>=0.1.0
 wandb>=0.10.26
 sentencepiece

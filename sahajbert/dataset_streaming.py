@@ -11,8 +11,7 @@ from typing import Sequence, Optional
 
 import torch
 from bnlp import NLTKTokenizer
-from datasets import load_dataset
-from datasets.streaming import load_dataset, merge_datasets
+from datasets import load_dataset, interleave_datasets
 from transformers import AlbertTokenizerFast, AlbertTokenizer
 
 logger = logging.getLogger(__name__)
@@ -120,20 +119,18 @@ def make_lazy_wikioscar_dataset(
     shuffle_seed: Optional[int] = None,
     preprocessing_batch_size: int = 256,
 ):
-    wiki = load_dataset("lhoestq/wikipedia_bn", split="train")
-    # ^-- no need for script_version: already compatible with streaming
-
-    oscar = load_dataset("oscar", "unshuffled_deduplicated_bn", split="train", script_version="streaming")
+    wiki = load_dataset("lhoestq/wikipedia_bn", split="train", streaming=True)
+    oscar = load_dataset("oscar", "unshuffled_deduplicated_bn", split="train", streaming=True)
 
     # both should have the same columns
     wiki = wiki.map(lambda x: {"text": x["text"], "orig": f"wiki[{x['title']}]"})
     oscar = oscar.map(lambda x: {"text": x["text"], "orig": f"oscar[{x['id']}]"})
 
     # merge, shuffle and set pytorch format
-    dataset = merge_datasets([wiki, oscar], probabilities=list(probs))
+    dataset = interleave_datasets([wiki, oscar], probabilities=list(probs))
     dataset = dataset.shuffle(shuffle_buffer_size, seed=shuffle_seed)
     # ^-- this creates a buffer of random examples that will be refilled in background
 
-    dataset = dataset.map(partial(tokenize_function, tokenizer), batch_size=preprocessing_batch_size)
+    dataset = dataset.map(partial(tokenize_function, tokenizer), batched=True, batch_size=preprocessing_batch_size)
     dataset = dataset.with_format("torch")
     return WrappedIterableDataset(dataset)
